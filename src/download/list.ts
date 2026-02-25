@@ -26,7 +26,8 @@ export async function downloadArticleList(params: IDownloadArticleListParams) {
     progressBar,
     host,
     options,
-    imageServiceDomains = []
+    imageServiceDomains = [],
+    docsUpdateTimeMap
   } = params
   let errArticleCount = 0
   let totalArticleCount = 0
@@ -102,7 +103,7 @@ export async function downloadArticleList(params: IDownloadArticleListParams) {
       mdPath = [...preItem.pathTitleList, fileName, 'index.md'].map(fixPath).join('/')
       savePath = pathTitleList.map(fixPath).join('/')
     }
-    const progressItem = {
+    const progressItem: IProgressItem & { savePath: string } = {
       path: mdPath,
       savePath,
       pathTitleList,
@@ -124,12 +125,34 @@ export async function downloadArticleList(params: IDownloadArticleListParams) {
         host,
         imageServiceDomains
       }
+
+      // 增量下载优化：使用预获取的更新时间进行快速判断
+      const oldProgressItem = uuidMap.get(item.uuid)
+      if (docsUpdateTimeMap && oldProgressItem?.contentUpdatedAt) {
+        const docInfo = docsUpdateTimeMap.get(item.url)
+        if (docInfo) {
+          const oldTime = new Date(oldProgressItem.contentUpdatedAt).getTime()
+          const newTime = new Date(docInfo.content_updated_at).getTime()
+          // 文档没有更新，跳过下载
+          if (newTime <= oldTime) {
+            // 保留旧的进度信息（包括时间戳）
+            progressItem.contentUpdatedAt = oldProgressItem.contentUpdatedAt
+            progressItem.createAt = oldProgressItem.createAt
+            progressItem.publishedAt = oldProgressItem.publishedAt
+            progressItem.firstPublishedAt = oldProgressItem.firstPublishedAt
+            uuidMap.set(item.uuid, progressItem)
+            await progressBar.updateProgress(progressItem, true)
+            return
+          }
+        }
+      }
+
       const { isUpdateDownload } = await downloadArticle({
         articleInfo,
         progressBar,
         options,
         progressItem,
-        oldProgressItem: uuidMap.get(item.uuid)
+        oldProgressItem
       })
       if (isUpdateDownload) {
         updateDownloadList.push({

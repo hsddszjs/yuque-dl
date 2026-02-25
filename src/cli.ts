@@ -44,9 +44,6 @@ cli
   .option('--toc', '是否输出文档toc目录', {
     default: false
   })
-  .option('--incremental', '开启增量下载[初次下载加不加该参数没区别]', {
-    default: false
-  })
   .option('--convertMarkdownVideoLinks', '转化markdown视频链接为video标签', {
     default: false
   })

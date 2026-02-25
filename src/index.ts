@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import Summary from './parse/Summary'
-import { getKnowledgeBaseInfo } from './api'
+import { getKnowledgeBaseInfo, getDocsListWithUpdateTime } from './api'
 import { fixPath } from './parse/fix'
 import { ProgressBar, isValidUrl, logger } from './utils'
 import { downloadArticleList } from './download/list'
@@ -31,20 +31,12 @@ export async function main(url: string, options: ICliOptions) {
   await mkdir(bookPath, {recursive: true})
 
   const total = tocList.length
-  const progressBar = new ProgressBar(bookPath, total, options.incremental)
+  const progressBar = new ProgressBar(bookPath, total)
   await progressBar.init()
 
-  // 为了检查是否有增量数据
-  // 即使已下载的与progress的数量一致也需继续进行
-  if (!options.incremental && progressBar.curr == total) {
-    if (progressBar.bar) progressBar.bar.stop()
-    logger.info(`√ 已完成: ${bookPath}`)
-    return
-  }
-
   const uuidMap = new Map<string, IProgressItem>()
-  // 下载中断 重新获取下载进度数据 或者 增量下载 也需获取旧的下载进度
-  if (progressBar.isDownloadInterrupted || options.incremental) {
+  // 始终加载已有进度，支持断点续传和增量下载
+  if (progressBar.isDownloadInterrupted || progressBar.progressInfo.length > 0) {
     progressBar.progressInfo.forEach(item => {
       uuidMap.set(
         item.toc.uuid,
@@ -52,6 +44,22 @@ export async function main(url: string, options: ICliOptions) {
       )
     })
   }
+
+  // 增量下载优化：预先获取所有文档的更新时间，避免逐篇请求API
+  let docsUpdateTimeMap: Map<string, { content_updated_at: string }> | undefined
+  if (progressBar.progressInfo.length > 0) {
+    logger.info('正在获取文档更新时间列表...')
+    try {
+      docsUpdateTimeMap = await getDocsListWithUpdateTime(bookId, {
+        token: options.token,
+        key: options.key
+      }, host)
+      logger.info(`获取到 ${docsUpdateTimeMap.size} 篇文档的更新时间`)
+    } catch (e) {
+      logger.warn('获取文档更新时间列表失败，将使用逐篇检查模式')
+    }
+  }
+
   const articleUrlPrefix = url.replace(new RegExp(`(.*?/${bookSlug}).*`), '$1')
   // 下载文章列表
   await downloadArticleList({
@@ -64,7 +72,8 @@ export async function main(url: string, options: ICliOptions) {
     progressBar,
     host,
     options,
-    imageServiceDomains
+    imageServiceDomains,
+    docsUpdateTimeMap
   })
 
   // 生成目录

@@ -13,22 +13,18 @@ export class ProgressBar {
   isDownloadInterrupted: boolean = false
   bar: cliProgress.SingleBar | null = null
   completePromise: Promise<void> | null = null
-  incremental: boolean
 
-  constructor (bookPath: string, total: number, incremental = false) {
+  constructor (bookPath: string, total: number) {
     this.bookPath = bookPath
     this.progressFilePath = `${bookPath}/progress.json`
     this.total = total
-    this.incremental = incremental
   }
 
   async init() {
     this.progressInfo = await this.getProgress()
-    // 增量下载需把进度重置为0 然后每一篇文档重新检查一遍 update时间
-    this.curr = this.incremental ? 0 : this.progressInfo.length
-    // 可能出现增量下载
-    if (this.curr === this.total) return
-    if (this.curr > 0 && this.curr !== this.total && !this.incremental) {
+    // 默认增量下载：进度从0开始，逐篇检查是否需要更新
+    this.curr = 0
+    if (this.progressInfo.length > 0 && this.progressInfo.length < this.total) {
       this.isDownloadInterrupted = true
       logger.info('根据上次数据继续断点下载')
     }

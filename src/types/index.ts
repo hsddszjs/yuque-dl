@@ -20,8 +20,6 @@ export interface ICliOptions {
   key?: string
   /** 是否忽略markdown中toc的生成 */
   toc: boolean
-  /** 是否增量下载 */
-  incremental: boolean
   /** 转化markdown视频链接为video标签 */
   convertMarkdownVideoLinks: boolean
   /** 是否禁用页脚 */
@@ -114,6 +112,8 @@ export interface IDownloadArticleListParams {
   host?: string
   options: ICliOptions,
   imageServiceDomains?: string[]
+  /** 增量下载时的文档更新时间映射 */
+  docsUpdateTimeMap?: Map<string, { content_updated_at: string }>
 }
 
 // ---------------- ProgressBar

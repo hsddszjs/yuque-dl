@@ -108,3 +108,33 @@ export const getDocsMdData: TGetMdData = (params, isMd = true) => {
       return res
     })
 }
+
+/** 文档列表项 */
+export interface IDocListItem {
+  id: number
+  slug: string
+  title: string
+  content_updated_at: string
+  created_at: string
+  updated_at: string
+  published_at: string
+  first_published_at: string
+}
+
+/** 获取知识库所有文档列表（包含更新时间） */
+export async function getDocsListWithUpdateTime(
+  bookId: number,
+  headerParams: GetHeaderParams,
+  host: string = DEFAULT_DOMAIN
+): Promise<Map<string, IDocListItem>> {
+  const apiUrl = `${host}/api/docs?book_id=${bookId}&limit=10000`
+  const { data } = await axios.get<{ data: IDocListItem[] }>(apiUrl, genCommonOptions(headerParams))
+  const docsMap = new Map<string, IDocListItem>()
+  if (data?.data) {
+    data.data.forEach(doc => {
+      // 用 slug 作为 key，因为 toc 里的 url 就是 slug
+      docsMap.set(doc.slug, doc)
+    })
+  }
+  return docsMap
+}
